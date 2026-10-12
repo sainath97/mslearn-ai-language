@@ -1,8 +1,11 @@
+from email.mime import text
+
 from dotenv import load_dotenv
 import os
 
-# Import namespaces
-
+# import namespaces
+from azure.identity import DefaultAzureCredential
+from azure.ai.textanalytics import TextAnalyticsClient
 
 def main():
     try:
@@ -13,9 +16,9 @@ def main():
         load_dotenv()
         foundry_endpoint = os.getenv('FOUNDRY_ENDPOINT')
 
-
         # Create client using endpoint
-
+        credential = DefaultAzureCredential()
+        ai_client = TextAnalyticsClient(endpoint=foundry_endpoint, credential=credential)
 
         # Analyze each text file in the reviews folder
         reviews_folder = 'reviews'
@@ -26,16 +29,23 @@ def main():
             print('\n' + text)
 
             # Get language
-
-
+            detectedLanguage = ai_client.detect_language(documents=[text])[0]
+            print('\nLanguage: {}'.format(detectedLanguage.primary_language.name))
+            print(detectedLanguage)
 
             # Get entities
+            entities = ai_client.recognize_entities(documents=[text])[0].entities
+            print("\nEntities")
+            for entity in entities:
+                print('\t{} ({})'.format(entity.text, entity.category))
 
-
-
-            # Get PII
-
-
+           # Get PII
+            pii_result = ai_client.recognize_pii_entities(documents=[text])[0]
+            pii_entities = pii_result.entities
+            print("\nPII Entities")
+            for pii_entity in pii_entities:
+                print('\t{} ({})'.format(pii_entity.text, pii_entity.category)) 
+            print("Redacted Text:\n {}".format(pii_result.redacted_text))
 
     except Exception as ex:
         print(ex)
