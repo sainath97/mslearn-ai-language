@@ -1,3 +1,4 @@
+from multiprocessing.dummy import connection
 import os
 import asyncio
 import base64
@@ -6,8 +7,18 @@ from dotenv import load_dotenv
 import pyaudio
 
 # import namespaces
-
-
+from azure.identity.aio import AzureCliCredential
+from azure.ai.voicelive.aio import connect
+from azure.ai.voicelive.models import (
+    InputAudioFormat,
+    Modality,
+    OutputAudioFormat,
+    RequestSession,
+    ServerEventType,
+    AudioNoiseReduction,
+    AudioEchoCancellation,
+    AzureSemanticVadMultilingual
+)
 
 def main():
     """Main entry point."""
@@ -21,7 +32,6 @@ def main():
         endpoint = os.environ.get("AZURE_VOICELIVE_ENDPOINT")
         agent_name = os.environ.get("AZURE_VOICELIVE_AGENT_ID")
         project_name = os.environ.get("AZURE_VOICELIVE_PROJECT_NAME")
-        agent_config = AgentConfig({ "agent_name": agent_name, "project_name": project_name })
 
         
         # Create credential for authentication
@@ -31,7 +41,8 @@ def main():
         assistant = VoiceAssistant(
             endpoint=endpoint,
             credential=credential,
-            agent_config = agent_config
+            agent_name=agent_name,
+            project_name=project_name
         )
         
         # Run the assistant
@@ -58,10 +69,11 @@ class VoiceAssistant:
     4. Process events from the service
     """
     
-    def __init__(self, endpoint, credential, agent_config):
+    def __init__(self, endpoint, credential, agent_name, project_name):
         self.endpoint = endpoint
         self.credential = credential
-        self.agent_config = agent_config
+        self.agent_name = agent_name
+        self.project_name = project_name
     async def start(self):
         """Start the voice assistant."""
         print("\n" + "=" * 60)
@@ -71,20 +83,29 @@ class VoiceAssistant:
         # Add your code in this try block!
         try:
             # STEP 1: Connect Azure VoiceLive to the agent
-
+            async with connect(
+                endpoint=self.endpoint,
+                credential=self.credential,
+                api_version="2026-01-01-preview",
+                agent_name=self.agent_name,
+                project_name=self.project_name
+            ) as connection:
+                self.connection = connection
                 
                 # STEP 2: Initialize audio processor
-                
+                self.audio_processor = AudioProcessor(connection)
                 
                 # STEP 3: Configure the session
-                
+                await self.setup_session()
                 
                 # STEP 4: Start audio systems
-                
+                self.audio_processor.start_playback()
+
+                print("\n✅ Ready! Start speaking...")
+                print("Press Ctrl+C to exit\n")
                 
                 # STEP 5: Process events
-                
-
+                await self.process_events()
         
         finally:
             if hasattr(self, 'audio_processor'):
